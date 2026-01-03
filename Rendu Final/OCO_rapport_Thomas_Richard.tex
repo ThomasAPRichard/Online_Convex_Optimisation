@@ -1,0 +1,259 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{caption}
+
+\geometry{margin=2.3cm}
+
+\title{Online Convex Optimization --- Home Assignment 2025\\Rapport}
+\author{Thomas Richard}
+\date{Janvier 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Remarque livrable.} J'ai rédigé ce rapport à partir de mon notebook
+\texttt{OCO\_Thomas\_Richard\_assignement.ipynb}.
+Je n'ajoute pas de résultats supplémentaires par rapport à ce que j'ai codé (sauf la preuve d'exp-concavité demandée en II.2(a)).
+Les figures ci-dessous proviennent des sorties du notebook et sont incluses depuis le dossier \texttt{oco\_report\_figs/}.
+
+\section{Partie I --- Rock Paper Scissors}
+
+\subsection{Matrice Rock--Paper--Scissors}
+Je fixe l'ordre des actions \texttt{(Rock, Paper, Scissors)} et j'utilise la matrice de pertes
+\[
+L =
+\begin{pmatrix}
+0 & 1 & -1\\
+-1 & 0 & 1\\
+1 & -1 & 0
+\end{pmatrix}.
+\]
+
+\subsection{Implémentation de EWA}
+Dans mon code :
+\begin{itemize}
+    \item je définis \texttt{rand\_weight(p)} pour échantillonner une action $I\in\{1,\dots,M\}$ selon une loi discrète $p\in\Delta_M$ ;
+    \item je définis \texttt{EWA\_uptade(p\_t, loss\_vector, eta)} pour effectuer la mise à jour exponentielle.
+\end{itemize}
+
+\paragraph{Vérification empirique de \texttt{rand\_weight}.}
+Je teste \texttt{rand\_weight} sur $p=(1/3,1/6,1/2)$ et j'obtiens :
+\[
+\widehat p \approx (0.33504,\ 0.16761,\ 0.49735).
+\]
+
+\subsection{Simulation contre un adversaire fixe}
+Je simule $T=100$ tours avec un adversaire fixe
+\[
+q = \left(\frac{1}{6},\frac{1}{3},\frac{1}{2}\right)
+\quad\text{et}\quad \eta=1.
+\]
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig01_cell20_md5dc39ea4b7c.png}
+\caption{Évolution des probabilités du joueur (EWA) au cours des tours ($T=100$, $\eta=1$).}
+\end{figure}
+
+Je répète ensuite l'expérience $n=200$ fois et je trace la perte moyenne cumulée.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig02_cell22_md541817d3821.png}
+\caption{Perte moyenne cumulée $\bar \ell_t$ sur $n=200$ simulations (EWA, $\eta=1$).}
+\end{figure}
+
+\paragraph{Choix de $\eta$ (pratique et théorie).}
+Dans mon notebook, j'écris :
+\begin{quote}
+Ici le meilleur $\eta$ change selon les itérations du code. Entre 0.3 et 0.1 et ce même en lissant en faisant 200 simulation.
+
+En théorie, le regret (eta) < log (M)/eta + C* eta * T,
+\end{quote}
+
+Je trace aussi la perte moyenne en fonction de $\eta\in\{0.01,0.03,0.1,0.3,1\}$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig03_cell25_md543e2deb083.png}
+\caption{Perte moyenne (sur $n=200$ répétitions) en fonction du learning rate $\eta$ (EWA, $T=100$).}
+\end{figure}
+
+\subsection{Implémentation de OGD (adversaire)}
+J'implémente :
+\begin{itemize}
+    \item \texttt{proj\_simplex(x)} : projection euclidienne sur le simplexe ;
+    \item \texttt{OGD\_update(q\_t, loss\_vector, t)} avec $\eta_t = 1/\sqrt{t}$.
+\end{itemize}
+
+\subsection{EWA vs OGD}
+Je lance une expérience de longueur $T=10000$ avec EWA (joueur) et OGD (adversaire),
+et je trace en échelle log-log
+$\|\bar p_t - (1/3,1/3,1/3)\|_2$.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig04_cell34_md510e5da2878.png}
+\caption{EWA (joueur) vs OGD (adversaire) : $\|\bar p_t - (1/3,1/3,1/3)\|_2$ en log-log.}
+\end{figure}
+
+\subsection{Hedge vs OGD}
+J'implémente une fonction \texttt{Hedge\_update(p\_t, q\_t, eta)} puis je lance une expérience Hedge (joueur) vs OGD (adversaire).
+Je trace en log-log les courbes Hedge vs OGD (et je superpose aussi la courbe EWA vs OGD calculée précédemment).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig05_cell39_md5df58b42338.png}
+\caption{Hedge vs OGD (et comparaison avec EWA vs OGD) : $\|\bar p_t - (1/3,1/3,1/3)\|_2$ en log-log.}
+\end{figure}
+
+\paragraph{Commentaire (tel que je l'écris dans le notebook).}
+\begin{quote}
+EWA finit par toujours jouer la même action contre un adversaire OGD, d'ou norm\_diffs tend vers une constante non nulle.
+
+Hedge, en revanche, semble bien converger vers la stratégie uniforme contre un adversaire OGD.
+\end{quote}
+
+\section{Partie II --- MNIST}
+
+\subsection{Préparation des données}
+Dans mon notebook, je charge des fichiers MNIST au format \texttt{idx} (\texttt{train-images}, \texttt{train-labels}, etc.) et je construis une version binaire du label :
+$y_t=1$ si le chiffre est \texttt{0}, et $y_t=-1$ sinon.
+J'ajoute aussi un intercept (un pixel fictif égal à $1$).
+
+\paragraph{Tailles (affichées dans le notebook).}
+\begin{itemize}
+    \item $X_{\text{train}} \in \mathbb{R}^{60000\times 784}$,
+    \item après ajout de l'intercept : $X_{\text{train,f}} \in \mathbb{R}^{60000\times 785}$.
+\end{itemize}
+
+\subsection{Dimension et région de recherche}
+Je réponds :
+\begin{quote}
+Il y a $28\times 28=784$ pixels par image, et on ajoute l'intercept, i.e. $d=785$.
+
+Donc $K$ est de la forme $\{\theta \in \mathbb{R}^{785} \,/\, \|\theta\| < D\}$.
+\end{quote}
+
+\subsection{Loss logistique : implémentation et exp-concavité}
+L'énoncé demande d'implémenter
+\[
+\ell(y,\theta^\top x)=\log\bigl(1+\exp(-y\,\theta^\top x)\bigr),
+\]
+et de prouver que cette fonction est exp-concave (II.2(a)).
+
+\paragraph{Implémentation.}
+Dans mon code, je définis \texttt{loss\_logistic(y, z)} qui renvoie $\log(1+\exp(-yz))$.
+
+\paragraph{Preuve d'exp-concavité.}
+Je pose $z = y\,\theta^\top x$ et $\varphi(z)=\log(1+e^{-z})$, de sorte que
+$\ell(y,\theta^\top x)=\varphi(z)$.
+On calcule
+\[
+\varphi'(z)= -\frac{1}{1+e^{z}},
+\qquad
+\varphi''(z)=\frac{e^{z}}{(1+e^{z})^{2}}.
+\]
+On remarque alors l'identité
+\[
+\varphi''(z)=e^{z}\bigl(\varphi'(z)\bigr)^2.
+\]
+Pour une fonction $\ell(\theta)=\varphi(y\,\theta^\top x)$, le gradient et la Hessienne valent
+\[
+\nabla_\theta \ell(\theta)=\varphi'(z)\,y\,x,
+\qquad
+\nabla_\theta^2 \ell(\theta)=\varphi''(z)\,x x^\top.
+\]
+Ainsi,
+\[
+\nabla_\theta^2 \ell(\theta)
+= \varphi''(z)\,xx^\top
+= e^{z}\bigl(\varphi'(z)\bigr)^2 xx^\top
+= e^{z}\, \nabla_\theta \ell(\theta)\nabla_\theta \ell(\theta)^\top.
+\]
+Donc, pour tout $\mu$ tel que $\mu \le e^{z}$, on a
+\[
+\nabla_\theta^2 \ell(\theta)\succeq
+\mu\, \nabla_\theta \ell(\theta)\nabla_\theta \ell(\theta)^\top,
+\]
+ce qui est exactement le critère d'exp-concavité vu en cours pour une fonction deux fois dérivable.
+
+Il reste à rendre $\mu$ uniforme sur l'ensemble de recherche.
+Si je suppose que $\|\theta\|_2\le D$ (donc $\theta\in K$) et que $\|x\|_2\le R$, alors
+\[
+|z|=|y\,\theta^\top x|\le \|\theta\|_2\|x\|_2\le DR,
+\quad\Rightarrow\quad
+z\ge -DR,
+\quad\Rightarrow\quad
+e^{z}\ge e^{-DR}.
+\]
+En posant $\mu = e^{-DR}$, j'obtiens donc que la loss logistique est $\mu$-exp-concave sur $K$
+(dès que $\|x\|_2\le R$ est borné).
+
+\subsection{Gradient et Hessienne (fonctions associées)}
+Dans mon notebook, j'écris :
+\begin{quote}
+Le gradient en $\theta$ est
+
+\textbf{grad = -yx / (1 + exp(y*thêta\_T x))}
+
+La Hessienne est 
+
+\textbf{hess = exp(y * thêta\_T x) / (1 + exp(y * thêta\_T x)) xx\_T}
+\end{quote}
+et je code les fonctions \texttt{gradient\_logistic} et \texttt{hessian\_logistic}.
+
+\subsection{Algorithmes (OGD et AdaGrad) sur $K=\{\theta:\|\theta\|_2\le D\}$}
+Dans mon notebook, j'implémente une projection sur la boule euclidienne et des fonctions \texttt{run\_OGD} et \texttt{run\_AdaGrad}.
+Je lance une exécution avec :
+\[
+D=10,\qquad T=20000.
+\]
+Je note aussi explicitement :
+\begin{quote}
+Pour eta je n'ai aucune idée de ce que je dois prendre
+\end{quote}
+
+\paragraph{Résultat numérique (affiché dans le notebook).}
+\[
+\text{OGD final loss mean} = 0.06967854049908476,\qquad
+\text{AdaGrad final loss mean} = 0.035155545742588425.
+\]
+
+\subsection{Regret}
+Dans mon notebook, j'approxime $\theta^\star$ via une descente de gradient projetée (mini-batch) sur les $T=20000$ premières données,
+et j'obtiens :
+\[
+\|\theta^\star\| \approx 1.9690942799620186.
+\]
+Je trace ensuite le regret
+\[
+\mathrm{Regret}_t = \sum_{s=1}^t \ell(y_s, \theta_s^\top x_s) - \ell\bigl(y_s, (\theta^\star)^\top x_s\bigr)
+\]
+pour OGD et AdaGrad.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{oco_report_figs/fig06_cell56_md5ffac5950db.png}
+\caption{Regret en fonction de $t$ (comparaison OGD vs AdaGrad) par rapport à $\theta^\star$ (best fixed in $K$).}
+\end{figure}
+
+\section{Questions omises : je ne sais pas répondre (dans l'état actuel de mon travail)}
+Je liste ici les questions de l'énoncé que je n'ai pas traitées (ou pas de manière exploitable) dans mon notebook, et pour lesquelles je ne sais pas répondre correctement sans refaire du travail :
+\begin{itemize}
+    \item \textbf{II.3(b)} : motiver mes choix de $D$ et des pas $\eta_t$ (je n'ai pas une justification solide dans mon notebook).
+    \item \textbf{II.3(c)} : mesurer à quelle fréquence mes algorithmes sortent de $K$ (je ne l'ai pas instrumenté / compté).
+    \item \textbf{II.3(d)} : tracer la \emph{cumulative loss} $S_t$ et la cumulative $0$--$1$ loss (je ne l'ai pas fait).
+\end{itemize}
+
+\end{document}
